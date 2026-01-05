@@ -80,8 +80,6 @@ function handleMovement(shape, w, h, x, y) {
         edgeL = x - w/2; edgeR = x + w/2; edgeT = y; edgeB = y + h;
     } else if (shape === 'pent') {
         // Precise Pentagon Edge Detection:
-        // The tip of a pentagon (at -PI/2) is exactly 1 radius up.
-        // The bottom flat edge is radius * cos(PI/5) down.
         let pOffsetBottom = pentRadius * cos(PI/5); 
         let pOffsetSide = pentRadius * sin(TWO_PI/5);
         edgeL = x - pOffsetSide;
@@ -93,11 +91,23 @@ function handleMovement(shape, w, h, x, y) {
     }
 
     if (mode === 'bounce') {
-        if (edgeR > width) { x -= (edgeR - width); vx *= -1; }
-        else if (edgeL < 0) { x -= edgeL; vx *= -1; }
+        // Horizontal Bounce
+        if (edgeR > width) { 
+            x = width - (edgeR - x); 
+            vx *= -1; 
+        } else if (edgeL < 0) { 
+            x = (x - edgeL); 
+            vx *= -1; 
+        }
         
-        if (edgeB > height) { y -= (edgeB - height); vy *= -1; }
-        else if (edgeT < 0) { y -= edgeT; vy *= -1; }
+        // Vertical Bounce
+        if (edgeB > height) { 
+            y = height - (edgeB - y); 
+            vy *= -1; 
+        } else if (edgeT < 0) { 
+            y = (y - edgeT); 
+            vy *= -1; 
+        }
     } else {
         // Wrap Logic
         if (edgeL > width) x = -w/2;
@@ -111,26 +121,36 @@ function handleMovement(shape, w, h, x, y) {
 }
 
 function keyPressed() {
+    // Control 1: Dark Mode
     if (key === '1') darkMode = !darkMode;
+    
+    // Control 2: Bounce/Wrap Mode
     if (key === '2') mode = (mode === 'wrap') ? 'bounce' : 'wrap';
-    if (key === 'r' || key === 'R') resetToCenter();
+    
+    // Control 3: Reset on '3' OR 'r'
+    if (key === '3' || key === 'r' || key === 'R') {
+        resetToCenter();
+    }
+    
     if (key === 'o' || key === 'O') outlinesOn = !outlinesOn;
 }
 
 function resetToCenter() {
     let cx = width / 2;
     let cy = height / 2;
+    
     rect1X = cx - rect1Width/2; rect1Y = cy - rect1Height/2;
     rect2X = cx - rect2Width/2; rect2Y = cy - rect2Height/2;
     ellipse1X = cx; ellipse1Y = cy;
     ellipse2X = cx; ellipse2Y = cy;
     triX = cx; triY = cy - triHeight/2;
     pentX = cx; pentY = cy;
+    
     initVelocities(); 
-    initTrackers();
+    initTrackers(); // Reset stuck timers immediately
 }
 
-// --- HELPER FUNCTIONS ---
+// --- REMAINDER OF UTILITY FUNCTIONS ---
 
 function drawShapes() {
     if (darkMode) {
@@ -169,9 +189,13 @@ function handleGlobalStuckLogic() {
     }
     if (maxStuckTime > 7000) {
         let remaining = Math.ceil((10000 - maxStuckTime) / 1000);
-        textAlign(CENTER, CENTER); textSize(40 * Scale); fill(darkMode ? 255 : 0);
+        textAlign(CENTER, CENTER); 
+        textSize(40 * Scale); 
+        fill(darkMode ? 255 : 0);
+        noStroke();
         text("STUCK SHAPE DETECTED", width/2, height/2 - 50*Scale);
-        textSize(80 * Scale); text("RESET IN " + max(0, remaining), width/2, height/2 + 50*Scale);
+        textSize(80 * Scale); 
+        text("RESET IN " + max(0, remaining), width/2, height/2 + 50*Scale);
         if (maxStuckTime > 10000) resetToCenter();
     }
 }
@@ -184,8 +208,11 @@ function initTrackers() {
 
 function updateStuckTracker(shape, currentX, currentY) {
     let t = shapeTrackers[shape];
+    // If the shape has moved significantly, update the timer
     if (Math.abs(currentX - t.lastX) > 15 || Math.abs(currentY - t.lastY) > 15) {
-        t.lastX = currentX; t.lastY = currentY; t.lastMoveTime = millis();
+        t.lastX = currentX; 
+        t.lastY = currentY; 
+        t.lastMoveTime = millis();
     }
 }
 
