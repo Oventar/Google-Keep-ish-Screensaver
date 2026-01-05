@@ -155,4 +155,106 @@ function handleMovement(shape, w, h) {
     else if (shape === 'rect2') { x = rect2X; y = rect2Y; vx = rect2VX; vy = rect2VY; }
     else if (shape === 'ellipse1') { x = ellipse1X; y = ellipse1Y; vx = ellipse1VX; vy = ellipse1VY; }
     else if (shape === 'ellipse2') { x = ellipse2X; y = ellipse2Y; vx = ellipse2VX; vy = ellipse2VY; }
-    else if (shape === 'tri') { x = triX; y = triY; vx =
+    else if (shape === 'tri') { x = triX; y = triY; vx = triVX; vy = triVY; }
+    else if (shape === 'pent') { x = pentX; y = pentY; vx = pentVX; vy = pentVY; }
+
+    // 2. Determine precise edges based on shape geometry
+    let edgeL, edgeR, edgeT, edgeB;
+
+    if (shape === 'rect1' || shape === 'rect2') {
+        // Rects are Top-Left drawn
+        edgeL = x;
+        edgeR = x + w;
+        edgeT = y;
+        edgeB = y + h;
+    } else if (shape === 'tri') {
+        // Triangle is Top-Center drawn
+        edgeL = x - w / 2;
+        edgeR = x + w / 2;
+        edgeT = y;
+        edgeB = y + h;
+    } else {
+        // Ellipse and Pentagon are Center drawn (h is radius for pent)
+        let rX = (shape === 'pent') ? w : w / 2;
+        let rY = (shape === 'pent') ? h : h / 2;
+        edgeL = x - rX;
+        edgeR = x + rX;
+        edgeT = y - rY;
+        edgeB = y + rY;
+    }
+
+    // 3. Apply Mode Logic
+    if (mode === 'wrap') {
+        // Wrap logic
+        if (edgeL > width) { 
+            // Moved off right, wrap to left
+            if(shape.includes('rect')) x = -w;
+            else if(shape === 'tri') x = -w/2;
+            else x = -w/2; // rough approx for ellipses
+        }
+        else if (edgeR < 0) {
+            // Moved off left, wrap to right
+            x = width + (x - edgeL); 
+        }
+        
+        if (edgeT > height) {
+            // Moved off bottom, wrap to top
+            if(shape.includes('rect') || shape === 'tri') y = -h;
+            else y = -h/2;
+        }
+        else if (edgeB < 0) {
+            // Moved off top, wrap to bottom
+            y = height + (y - edgeT);
+        }
+
+    } else {
+        // --- BOUNCE MODE ---
+        // We push the shape back to the boundary to prevent vibration/sticking
+        
+        // Right Wall
+        if (edgeR > width) {
+            let overflow = edgeR - width;
+            x -= overflow; 
+            vx *= -1;
+        }
+        // Left Wall
+        else if (edgeL < 0) {
+            let overflow = edgeL; // negative value
+            x -= overflow; 
+            vx *= -1;
+        }
+
+        // Bottom Wall
+        if (edgeB > height) {
+            let overflow = edgeB - height;
+            y -= overflow;
+            vy *= -1;
+        }
+        // Top Wall
+        else if (edgeT < 0) {
+            let overflow = edgeT; // negative value
+            y -= overflow;
+            vy *= -1;
+        }
+
+        // 4. FAILSAFE: "Reset to center if stuck/past border"
+        // If despite the bounce logic, the shape is significantly off screen (e.g. window resize glitch)
+        // we snap it to center.
+        if(edgeL > width || edgeR < 0 || edgeT > height || edgeB < 0) {
+            let cx = width/2; 
+            let cy = height/2;
+            if(shape.includes('rect')){ x = cx - w/2; y = cy - h/2; }
+            else { x = cx; y = cy; }
+            vx = random(-V, V); // Give it fresh velocity
+            vy = random(-V, V);
+        }
+    }
+
+    // 5. Update global variables
+    if (shape === 'rect1') { rect1X = x; rect1Y = y; rect1VX = vx; rect1VY = vy; }
+    else if (shape === 'rect2') { rect2X = x; rect2Y = y; rect2VX = vx; rect2VY = vy; }
+    else if (shape === 'ellipse1') { ellipse1X = x; ellipse1Y = y; ellipse1VX = vx; ellipse1VY = vy; }
+    else if (shape === 'ellipse2') { ellipse2X = x; ellipse2Y = y; ellipse2VX = vx; ellipse2VY = vy; }
+    else if (shape === 'tri') { triX = x; triY = y; triVX = vx; triVY = vy; }
+    else if (shape === 'pent') { pentX = x; pentY = y; pentVX = vx; pentVY = vy; }
+}
