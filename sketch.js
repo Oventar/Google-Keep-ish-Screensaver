@@ -18,7 +18,7 @@ let pentVX, pentVY;
 let V;
 
 let outlinesOn = false;
-let mode = 'bounce'; // UPDATED: Default is now bounce
+let mode = 'bounce'; 
 let darkMode = false;
 
 // Stuck Detection 
@@ -94,36 +94,60 @@ function handleMovement(shape, w, h, x, y) {
     }
 
     if (mode === 'bounce') {
-        // UPDATED BOUNCE LOGIC
-        // We push the object back inside the bounds AND force the velocity direction
-        
+        // BOUNCE LOGIC
         // Right Edge
         if (edgeR > width) { 
-            x -= (edgeR - width); // Push back inside
-            vx = -Math.abs(vx);   // Force velocity LEFT
+            x -= (edgeR - width); 
+            vx = -Math.abs(vx);   
         }
         // Left Edge
         else if (edgeL < 0) { 
-            x += -edgeL;          // Push back inside
-            vx = Math.abs(vx);    // Force velocity RIGHT
+            x += -edgeL;          
+            vx = Math.abs(vx);    
         }
 
         // Bottom Edge
         if (edgeB > height) { 
-            y -= (edgeB - height);// Push back inside
-            vy = -Math.abs(vy);   // Force velocity UP
+            y -= (edgeB - height);
+            vy = -Math.abs(vy);   
         }
         // Top Edge
         else if (edgeT < 0) { 
-            y += -edgeT;          // Push back inside
-            vy = Math.abs(vy);    // Force velocity DOWN
+            y += -edgeT;          
+            vy = Math.abs(vy);    
         }
     } else {
-        // Wrap logic
-        if (edgeL > width) x = -w/2;
-        else if (edgeR < 0) x = width + w/2;
-        if (edgeT > height) y = -h/2;
-        else if (edgeB < 0) y = height + h/2;
+        // --- FIXED WRAP LOGIC ---
+        // We calculate the distance from the coordinate (x,y) to the edges.
+        // This ensures that when we wrap, we place the shape EXACTLY at the boundary,
+        // preventing it from triggering the opposite condition immediately.
+        
+        let offsetL = x - edgeL;
+        let offsetR = edgeR - x;
+        let offsetT = y - edgeT;
+        let offsetB = edgeB - y;
+
+        // Horizontal Wrap
+        if (edgeL > width) {
+            // If it went off the Right, wrap to Left
+            // Position it so the Right edge is at 0
+            x = -offsetR; 
+        } else if (edgeR < 0) {
+            // If it went off the Left, wrap to Right
+            // Position it so the Left edge is at Width
+            x = width + offsetL;
+        }
+
+        // Vertical Wrap
+        if (edgeT > height) {
+            // If it went off the Bottom, wrap to Top
+            // Position it so the Bottom edge is at 0
+            y = -offsetB;
+        } else if (edgeB < 0) {
+            // If it went off the Top, wrap to Bottom
+            // Position it so the Top edge is at Height
+            y = height + offsetT;
+        }
     }
 
     setVelocities(shape, vx, vy);
@@ -147,8 +171,8 @@ function resetToCenter() {
     triX = cx; triY = cy - triHeight/2;
     pentX = cx; pentY = cy;
     
-    initVelocities(); // Randomizes directions/speeds
-    initTrackers();   // Resets the 10s timers
+    initVelocities(); 
+    initTrackers();   
 }
 
 function handleGlobalStuckLogic() {
