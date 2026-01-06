@@ -18,7 +18,7 @@ let pentVX, pentVY;
 let V;
 
 let outlinesOn = false;
-let mode = 'wrap';
+let mode = 'bounce'; // UPDATED: Default is now bounce
 let darkMode = false;
 
 // Stuck Detection 
@@ -74,9 +74,12 @@ function handleMovement(shape, w, h, x, y) {
 
     let edgeL, edgeR, edgeT, edgeB;
     
+    // Calculate edges based on shape type
     if (shape.includes('rect')) {
+        // Rects draw from top-left
         edgeL = x; edgeR = x + w; edgeT = y; edgeB = y + h;
     } else if (shape === 'tri') {
+        // Triangle draws from top tip (x,y)
         edgeL = x - w/2; edgeR = x + w/2; edgeT = y; edgeB = y + h;
     } else if (shape === 'pent') {
         let pOffsetBottom = pentRadius * cos(PI/5); 
@@ -86,15 +89,37 @@ function handleMovement(shape, w, h, x, y) {
         edgeT = y - pentRadius; 
         edgeB = y + pOffsetBottom;
     } else {
+        // Ellipses draw from center
         edgeL = x - w/2; edgeR = x + w/2; edgeT = y - h/2; edgeB = y + h/2;
     }
 
     if (mode === 'bounce') {
-        if (edgeR > width) { x = width - (edgeR - x); vx *= -1; }
-        else if (edgeL < 0) { x = (x - edgeL); vx *= -1; }
-        if (edgeB > height) { y = height - (edgeB - y); vy *= -1; }
-        else if (edgeT < 0) { y = (y - edgeT); vy *= -1; }
+        // UPDATED BOUNCE LOGIC
+        // We push the object back inside the bounds AND force the velocity direction
+        
+        // Right Edge
+        if (edgeR > width) { 
+            x -= (edgeR - width); // Push back inside
+            vx = -Math.abs(vx);   // Force velocity LEFT
+        }
+        // Left Edge
+        else if (edgeL < 0) { 
+            x += -edgeL;          // Push back inside
+            vx = Math.abs(vx);    // Force velocity RIGHT
+        }
+
+        // Bottom Edge
+        if (edgeB > height) { 
+            y -= (edgeB - height);// Push back inside
+            vy = -Math.abs(vy);   // Force velocity UP
+        }
+        // Top Edge
+        else if (edgeT < 0) { 
+            y += -edgeT;          // Push back inside
+            vy = Math.abs(vy);    // Force velocity DOWN
+        }
     } else {
+        // Wrap logic
         if (edgeL > width) x = -w/2;
         else if (edgeR < 0) x = width + w/2;
         if (edgeT > height) y = -h/2;
@@ -143,7 +168,7 @@ function handleGlobalStuckLogic() {
         text("RESET IN " + max(0, remaining), width/2, height/2 + 50*Scale);
         
         if (maxStuckTime > 10000) {
-            resetToCenter(); // This now randomizes directions too
+            resetToCenter(); 
         }
     }
 }
