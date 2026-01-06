@@ -28,6 +28,10 @@ function setup() {
     createCanvas(windowWidth, windowHeight);
     pixelDensity(displayDensity());
     darkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    // IMPORTANT FIX: This treats rectangles like ellipses (anchored at center).
+    // This fixes the teleporting loop bugs.
+    rectMode(CENTER); 
 
     initScaleAndSizes();
     initPositions();
@@ -54,6 +58,7 @@ function draw() {
     pentX += pentVX; pentY += pentVY;
 
     // Boundary & Stuck Logic
+    // Note: widths/heights are now treated as full dimensions centered on X/Y
     handleMovement('rect1', rect1Width, rect1Height, rect1X, rect1Y);
     handleMovement('rect2', rect2Width, rect2Height, rect2X, rect2Y);
     handleMovement('ellipse1', ellipse1Width, ellipse1Height, ellipse1X, ellipse1Y);
@@ -72,87 +77,163 @@ function handleMovement(shape, w, h, x, y) {
 
     updateStuckTracker(shape, x, y);
 
-    let edgeL, edgeR, edgeT, edgeB;
+    // Because we used rectMode(CENTER), calculation is the same for ALL shapes now
+    let halfW = w / 2;
+    let halfH = h / 2;
+
+    // Edges
+    let edgeL = x - halfW;
+    let edgeR = x + halfW;
+    let edgeT = y - halfH;
+    let edgeB = y + halfH;
     
-    // Calculate edges based on shape type
-    if (shape.includes('rect')) {
-        // Rects draw from top-left
-        edgeL = x; edgeR = x + w; edgeT = y; edgeB = y + h;
-    } else if (shape === 'tri') {
-        // Triangle draws from top tip (x,y)
-        edgeL = x - w/2; edgeR = x + w/2; edgeT = y; edgeB = y + h;
-    } else if (shape === 'pent') {
-        let pOffsetBottom = pentRadius * cos(PI/5); 
-        let pOffsetSide = pentRadius * sin(TWO_PI/5);
-        edgeL = x - pOffsetSide;
-        edgeR = x + pOffsetSide;
-        edgeT = y - pentRadius; 
-        edgeB = y + pOffsetBottom;
-    } else {
-        // Ellipses draw from center
-        edgeL = x - w/2; edgeR = x + w/2; edgeT = y - h/2; edgeB = y + h/2;
+    // Pentagon specific adjustment for accuracy (optional, but keeps it tight)
+    if (shape === 'pent') {
+        let pRad = w/2;
+        edgeT = y - pRad;
+        edgeB = y + pRad; 
+        edgeL = x - pRad;
+        edgeR = x + pRad;
     }
 
     if (mode === 'bounce') {
-        // BOUNCE LOGIC
-        // Right Edge
+        // --- BOUNCE LOGIC ---
         if (edgeR > width) { 
-            x -= (edgeR - width); 
+            x = width - halfW; 
             vx = -Math.abs(vx);   
         }
-        // Left Edge
         else if (edgeL < 0) { 
-            x += -edgeL;          
+            x = halfW;          
             vx = Math.abs(vx);    
         }
-
-        // Bottom Edge
         if (edgeB > height) { 
-            y -= (edgeB - height);
+            y = height - halfH;
             vy = -Math.abs(vy);   
         }
-        // Top Edge
         else if (edgeT < 0) { 
-            y += -edgeT;          
+            y = halfH;          
             vy = Math.abs(vy);    
         }
     } else {
-        // --- FIXED WRAP LOGIC ---
-        // We calculate the distance from the coordinate (x,y) to the edges.
-        // This ensures that when we wrap, we place the shape EXACTLY at the boundary,
-        // preventing it from triggering the opposite condition immediately.
+        // --- SMOOTH WRAP LOGIC ---
+        // We only "teleport" the X/Y when the shape is FULLY off screen.
+        // The drawShapes() function handles the visual "ghost" so it looks smooth.
         
-        let offsetL = x - edgeL;
-        let offsetR = edgeR - x;
-        let offsetT = y - edgeT;
-        let offsetB = edgeB - y;
+        let bufferX = halfW * 1.5; // Extra buffer to ensure it clears screen
+        let bufferY = halfH * 1.5;
 
-        // Horizontal Wrap
-        if (edgeL > width) {
-            // If it went off the Right, wrap to Left
-            // Position it so the Right edge is at 0
-            x = -offsetR; 
-        } else if (edgeR < 0) {
-            // If it went off the Left, wrap to Right
-            // Position it so the Left edge is at Width
-            x = width + offsetL;
-        }
-
-        // Vertical Wrap
-        if (edgeT > height) {
-            // If it went off the Bottom, wrap to Top
-            // Position it so the Bottom edge is at 0
-            y = -offsetB;
-        } else if (edgeB < 0) {
-            // If it went off the Top, wrap to Bottom
-            // Position it so the Top edge is at Height
-            y = height + offsetT;
-        }
+        if (x > width + bufferX) x = -bufferX;
+        else if (x < -bufferX) x = width + bufferX;
+        
+        if (y > height + bufferY) y = -bufferY;
+        else if (y < -bufferY) y = height + bufferY;
     }
 
     setVelocities(shape, vx, vy);
     updateGlobalPos(shape, x, y);
 }
+
+// --- VISUAL RENDERING WITH GHOSTS ---
+function drawShapes() {
+    // We create a helper that draws the shape at (x,y) AND at offset positions
+    // if we are in wrap mode.
+    
+    let drawRect1 = () => rect(0, 0, rect1Width, rect1Height);
+    let drawRect2 = () => rect(0, 0, rect2Width, rect2Height);
+    let drawEll1 = () => ellipse(0, 0, ellipse1Width, ellipse1Height);
+    let drawEll2 = () => ellipse(0, 0, ellipse2Width, ellipse2Height);
+    let drawTri = () => triangle(0, 0, -triWidth / 2, triHeight, triWidth / 2, triHeight);
+    let drawPent = () => drawPentagon(0, 0, pentRadius);
+
+    // Colors
+    let cR1 = darkMode ? color(255, 160, 160) : color(255, 105, 97);
+    let cR2 = darkMode ? color(160, 255, 160) : color(144, 238, 144);
+    let cE1 = darkMode ? color(160, 200, 255) : color(100, 149, 237);
+    let cE2 = darkMode ? color(200, 160, 255) : color(186, 85, 211);
+    let cT  = darkMode ? color(255, 220, 100) : color(255, 215, 0);
+    let cP  = darkMode ? color(255, 180, 80) : color(255, 165, 0);
+
+    // Render with Wrappers
+    renderWrapped(rect1X, rect1Y, rect1Width, rect1Height, cR1, drawRect1);
+    renderWrapped(rect2X, rect2Y, rect2Width, rect2Height, cR2, drawRect2);
+    renderWrapped(ellipse1X, ellipse1Y, ellipse1Width, ellipse1Height, cE1, drawEll1);
+    renderWrapped(ellipse2X, ellipse2Y, ellipse2Width, ellipse2Height, cE2, drawEll2);
+    
+    // Adjust Y offset for Triangle because drawn from top-tip relative to center logic
+    push();
+    translate(triX, triY);
+    // Visual adjustment to center the visual weight of the triangle
+    translate(0, -triHeight/2); 
+    // We pass 0,0 here because we already translated
+    renderWrapped(0, 0, triWidth, triHeight, cT, drawTri, true); 
+    pop();
+
+    renderWrapped(pentX, pentY, pentRadius*2, pentRadius*2, cP, drawPent);
+}
+
+// Helper to draw the main shape PLUS "ghosts" on the other side if needed
+function renderWrapped(x, y, w, h, col, drawFn, isRelative = false) {
+    fill(col);
+    
+    // 1. Draw Original
+    if(!isRelative) {
+        push();
+        translate(x, y);
+        drawFn();
+        pop();
+    } else {
+        // If already translated (like the triangle fix), just draw
+        drawFn();
+    }
+
+    // 2. If WRAP mode, draw Ghosts
+    if (mode === 'wrap') {
+        let ghostPositions = [];
+
+        // Check horizontal overlap
+        // If overlapping Right Edge, draw Ghost on Left
+        if (x + w/2 > width) ghostPositions.push({ox: -width, oy: 0});
+        // If overlapping Left Edge, draw Ghost on Right
+        if (x - w/2 < 0) ghostPositions.push({ox: width, oy: 0});
+        
+        // Check vertical overlap
+        // If overlapping Bottom, draw Ghost on Top
+        if (y + h/2 > height) ghostPositions.push({ox: 0, oy: -height});
+        // If overlapping Top, draw Ghost on Bottom
+        if (y - h/2 < 0) ghostPositions.push({ox: 0, oy: height});
+
+        // Corner Cases (Diagonal Ghosts) - if near a corner, we might need a diagonal ghost
+        // E.g., Top-Left corner needs a Ghost at Bottom-Right
+        if ((x - w/2 < 0) && (y - h/2 < 0)) ghostPositions.push({ox: width, oy: height});
+        if ((x + w/2 > width) && (y - h/2 < 0)) ghostPositions.push({ox: -width, oy: height});
+        if ((x - w/2 < 0) && (y + h/2 > height)) ghostPositions.push({ox: width, oy: -height});
+        if ((x + w/2 > width) && (y + h/2 > height)) ghostPositions.push({ox: -width, oy: -height});
+
+        for (let gp of ghostPositions) {
+            push();
+            if(isRelative) {
+                translate(gp.ox, gp.oy);
+            } else {
+                translate(x + gp.ox, y + gp.oy);
+            }
+            drawFn();
+            pop();
+        }
+    }
+}
+
+function drawPentagon(x, y, radius) {
+    let angle = TWO_PI / 5;
+    beginShape();
+    for (let i = 0; i < 5; i++) {
+        let px = x + cos(angle * i - PI / 2) * radius;
+        let py = y + sin(angle * i - PI / 2) * radius;
+        vertex(px, py);
+    }
+    endShape(CLOSE);
+}
+
+// --- INPUT & UTILS ---
 
 function keyPressed() {
     if (key === '1') darkMode = !darkMode;
@@ -164,11 +245,12 @@ function keyPressed() {
 function resetToCenter() {
     let cx = width / 2;
     let cy = height / 2;
-    rect1X = cx - rect1Width/2; rect1Y = cy - rect1Height/2;
-    rect2X = cx - rect2Width/2; rect2Y = cy - rect2Height/2;
+    // With rectMode(CENTER), positions are simply center of screen
+    rect1X = cx; rect1Y = cy;
+    rect2X = cx; rect2Y = cy;
     ellipse1X = cx; ellipse1Y = cy;
     ellipse2X = cx; ellipse2Y = cy;
-    triX = cx; triY = cy - triHeight/2;
+    triX = cx; triY = cy;
     pentX = cx; pentY = cy;
     
     initVelocities(); 
@@ -208,35 +290,6 @@ function updateStuckTracker(shape, currentX, currentY) {
     if (Math.abs(currentX - t.lastX) > 15 || Math.abs(currentY - t.lastY) > 15) {
         t.lastX = currentX; t.lastY = currentY; t.lastMoveTime = millis();
     }
-}
-
-function drawShapes() {
-    if (darkMode) {
-        fill(255, 160, 160); rect(rect1X, rect1Y, rect1Width, rect1Height);
-        fill(160, 255, 160); rect(rect2X, rect2Y, rect2Width, rect2Height);
-        fill(160, 200, 255); ellipse(ellipse1X, ellipse1Y, ellipse1Width, ellipse1Height);
-        fill(200, 160, 255); ellipse(ellipse2X, ellipse2Y, ellipse2Width, ellipse2Height);
-        fill(255, 220, 100); triangle(triX, triY, triX - triWidth / 2, triY + triHeight, triX + triWidth / 2, triY + triHeight);
-        fill(255, 180, 80); drawPentagon(pentX, pentY, pentRadius);
-    } else {
-        fill(255, 105, 97); rect(rect1X, rect1Y, rect1Width, rect1Height);
-        fill(144, 238, 144); rect(rect2X, rect2Y, rect2Width, rect2Height);
-        fill(100, 149, 237); ellipse(ellipse1X, ellipse1Y, ellipse1Width, ellipse1Height);
-        fill(186, 85, 211); ellipse(ellipse2X, ellipse2Y, ellipse2Width, ellipse2Height);
-        fill(255, 215, 0); triangle(triX, triY, triX - triWidth / 2, triY + triHeight, triX + triWidth / 2, triY + triHeight);
-        fill(255, 165, 0); drawPentagon(pentX, pentY, pentRadius);
-    }
-}
-
-function drawPentagon(x, y, radius) {
-    let angle = TWO_PI / 5;
-    beginShape();
-    for (let i = 0; i < 5; i++) {
-        let px = x + cos(angle * i - PI / 2) * radius;
-        let py = y + sin(angle * i - PI / 2) * radius;
-        vertex(px, py);
-    }
-    endShape(CLOSE);
 }
 
 function initScaleAndSizes() {
