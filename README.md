@@ -16,6 +16,8 @@ keyboard triggers:
 
   2 – Toggle physics mode (Bounce ↔ Wrap)
 
+note: dont press 2. it's kinda broken right now
+
   3 / R – Reset everything (shapes snap back to the center with new velocities)
 
   O – Toggle outlines on the shapes
